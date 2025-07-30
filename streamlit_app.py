@@ -136,7 +136,7 @@ with tab1:
 
 
 with tab2:
-    st.title("DLR Irish Language Proficiency by Department")
+    st.title("DLR Irish Language Proficiency")
     st.write("Org Level Proficiency")
 
     # Irish language proficiency data
@@ -158,9 +158,9 @@ with tab2:
     irish_df = irish_df.sort_values("Total", ascending=False)
 
     # Custom colors
-    color_no_irish = "#d62728"      # red
-    color_some_irish = "#ff7f0e"    # orange
-    color_level3 = "#2ca02c"        # green
+    color_no_irish = "#4D9A94"      # red
+    color_some_irish = "#D8B6A4"    # orange
+    color_level3 = "#F28C28"        # green
 
     # --- Vertical summary chart ---
     summary_totals = {
@@ -186,7 +186,7 @@ with tab2:
                         ha='center', va='bottom')
 
     # Percentages in top-right corner inside chart area, stacked vertically
-    x_pos = len(sorted_keys) - 0.1
+    x_pos = len(sorted_keys) - 1.01
     y_start = max(sorted_values) * 1.15
     line_spacing = 0.08 * max(sorted_values)
 
@@ -194,6 +194,7 @@ with tab2:
         y_pos = y_start - i * line_spacing
         ax_summary.text(x_pos, y_pos, f"{pct}%", color=color, ha='right', va='top', fontsize=10)
         ax_summary.text(x_pos + 0.1, y_pos, f"{label}", color='black', ha='left', va='top', fontsize=10)
+    
 
     ax_summary.set_ylim(0, max(sorted_values) * 1.2)
     ax_summary.set_yticks([])
@@ -222,6 +223,6 @@ with tab2:
     ax2.set_xlabel("")
     ax2.set_ylabel("")
     ax2.set_title("")
-    ax2.legend()
+    # ax2.legend()
 
     st.pyplot(fig2)
