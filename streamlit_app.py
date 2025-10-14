@@ -10,7 +10,11 @@ from matplotlib.gridspec import GridSpec
 
 url = 'https://raw.githubusercontent.com/AwsAl-CCT/dlr_hr_analytics/refs/heads/main/QVal.csv'
 response = requests.get(url)
+url_headcount = 'https://raw.githubusercontent.com/AwsAl-CCT/dlr_hr_analytics/refs/heads/main/All-headcount-streamlit.csv'
+response_headcount = requests.get(url_headcount)
 df = pd.read_csv(StringIO(response.text), encoding='utf-16', delimiter='\t')
+df_headcount = pd.read_csv(StringIO(response_headcount.text), encoding='utf-16', delimiter='\t')
+
 
 from matplotlib.ticker import MultipleLocator, FuncFormatter
 from matplotlib.gridspec import GridSpec
@@ -43,7 +47,7 @@ irish_data = {
 irish_df = pd.DataFrame(irish_data)
 
 # Set tabs
-tab1, tab2 = st.tabs(["📊 HR Dashboard", "🗣️ Irish Language Proficiency"])
+tab1, tab2, tab3 = st.tabs(["📊 HR Dashboard", "🗣️ Irish Language Proficiency", "Headcount"])
 
 
 with tab1:
@@ -226,3 +230,47 @@ with tab2:
     # ax2.legend()
 
     st.pyplot(fig2)
+
+with tab3:
+    st.title("DLR Headcount")
+    st.write("Overall Headcount Information")
+    # Display the raw data
+    st.dataframe(df_headcount)
+
+    # Sidebar filters
+    st.sidebar.header("Filter Options")
+    pay_group = st.sidebar.multiselect("Pay Group (Person)", options=df_headcount["Pay Group (Person)"].dropna().unique())
+    appointment_status = st.sidebar.multiselect("Appointment Status (Appointment)", options=df_headcount["Appointment Status (Appointment)"].unique())
+    employment_status = st.sidebar.multiselect("Employment Status (Person)", options=df_headcount["Employment Status (Person)"].unique())
+    post_type = st.sidebar.multiselect("Post Type (Post Profile)", options=df_headcount["Post Type (Post Profile)"].unique())
+
+    # Apply filters
+    filtered_df = df_headcount.copy()
+    if pay_group:
+        filtered_df = filtered_df[filtered_df["Pay Group (Person)"].isin(pay_group)]
+    if appointment_status:
+        filtered_df = filtered_df[filtered_df["Appointment Status (Appointment)"].isin(appointment_status)]
+    if employment_status:
+        filtered_df = filtered_df[filtered_df["Employment Status (Person)"].isin(employment_status)]
+    if post_type:
+        filtered_df = filtered_df[filtered_df["Post Type (Post Profile)"].isin(post_type)]
+
+    # Create pivot table
+    pivot_table = pd.pivot_table(
+        filtered_df,
+        index=["Directorate", "Department"],
+        columns="Grade",
+        values="Employee Number (Person)",
+        aggfunc="count",
+        fill_value=0
+    )
+
+    # Display pivot table
+    st.subheader("Pivot Table")
+    st.dataframe(pivot_table)
+
+    # Display heatmap
+    st.subheader("Heatmap of Headcount by Grade")
+    fig, ax = plt.subplots(figsize=(12, 8))
+    sns.heatmap(pivot_table, annot=True, fmt="d", cmap="YlGnBu", ax=ax)
+    st.pyplot(fig)
