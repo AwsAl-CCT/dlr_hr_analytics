@@ -238,33 +238,38 @@ with tab3:
     st.write("Overall Headcount Information")
 
 
-    # Filters visible ONLY in this tab
-    payGroup = st.multiselect(
-        "Select Pay Group",
-        options= df_headcount['Pay Group (Person)'].unique(),
-        default=['SALARIES']
-    )
+    # --- Horizontal Filters ---
+    col1, col2, col3, col4 = st.columns(4)
 
-    appStatus = st.multiselect(
-        "Select Appointment Status",
-        options= df_headcount['Appointment Status (Appointment)'].unique(),
-        default=['CO']
-    )
+    with col1:
+        payGroup = st.multiselect(
+            "Select Pay Group",
+            options=df_headcount['Pay Group (Person)'].unique(),
+            default=['SALARIES']
+        )
 
-    EmpStatus = st.multiselect(
-        "Select Employment Status",
-        options= (df_headcount['Employment Status (Person)'].unique()),
-        default=['Live']
-    )
+    with col2:
+        appStatus = st.multiselect(
+            "Select Appointment Status",
+            options=df_headcount['Appointment Status (Appointment)'].unique(),
+            default=['CO']
+        )
 
-    postType = st.multiselect(
-        "Select Post Type",
-        options= (df_headcount['Post Type (Post Profile)'].unique()),
-        default=['PW']
-    )
+    with col3:
+        EmpStatus = st.multiselect(
+            "Select Employment Status",
+            options=df_headcount['Employment Status (Person)'].unique(),
+            default=['Live']
+        )
 
-    
-    # Apply filters dynamically
+    with col4:
+        postType = st.multiselect(
+            "Select Post Type",
+            options=df_headcount['Post Type (Post Profile)'].unique(),
+            default=['PW']
+        )
+
+    # --- Apply Filters ---
     filtered_df = df_headcount.copy()
     if payGroup:
         filtered_df = filtered_df[filtered_df['Pay Group (Person)'].isin(payGroup)]
@@ -276,39 +281,41 @@ with tab3:
         filtered_df = filtered_df[filtered_df['Post Type (Post Profile)'].isin(postType)]
 
 
-    # 1. Prepare data with Grade labels
+    st.subheader("Pivot Table View")
+    st.dataframe(pivot_df, use_container_width=True)
+
+    # --- Sunburst Chart ---
     sunburst_df = filtered_df.groupby(['Directorate', 'Department', 'Grade'])['Employee Number (Person)'].count().reset_index()
     sunburst_df.rename(columns={'Employee Number (Person)': 'Headcount'}, inplace=True)
+
+    # Add Grade Label for clarity
     sunburst_df['Grade Label'] = 'Grade ' + sunburst_df['Grade'].astype(str)
 
-    # 2. Calculate total headcount for filtered data
+    # Calculate total headcount
     total_headcount = sunburst_df['Headcount'].sum()
-
-    # 3. Show total headcount as title
     st.subheader(f"Total Headcount (Filtered): {total_headcount}")
 
-    # 4. Create Sunburst chart
+    # Create Sunburst chart
     fig = px.sunburst(
         sunburst_df,
-        path=['Directorate', 'Department', 'Grade Label'],  # Use Grade Label for clarity
+        path=['Directorate', 'Department', 'Grade Label'],
         values='Headcount',
-        color='Directorate',  # Colour by Directorate
+        color='Directorate',
         title="Headcount Hierarchy",
         width=950,
         height=950
     )
 
-    # 5. Improve text readability
+    # Improve text readability
     fig.update_traces(
-        textinfo='label+value',  # Show both label and headcount
+        textinfo='label+value',
         insidetextorientation='radial',  # Uniform orientation
         hovertemplate='<b>%{label}</b><br>Headcount: %{value}<extra></extra>'
     )
 
-    # 6. Display chart in Streamlit
     st.plotly_chart(fig, use_container_width=True)
 
-    # 7. Add download button for filtered data
+    # --- Download Button ---
     csv = filtered_df.to_csv(index=False)
     st.download_button(
         label="Download Filtered Data as CSV",
@@ -316,3 +323,12 @@ with tab3:
         file_name="filtered_headcount.csv",
         mime="text/csv"
     )
+
+    # --- Pivot Table optional ---
+    # pivot_df = filtered_df.pivot_table(
+    #     index=['Directorate', 'Department'],
+    #     columns='Grade',
+    #     values='Employee Number (Person)',
+    #     aggfunc='count',
+    #     fill_value=0
+    # ).reset_index()
