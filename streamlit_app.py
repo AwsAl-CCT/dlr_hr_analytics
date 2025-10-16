@@ -3,6 +3,8 @@ import pandas as pd
 import requests
 from io import StringIO
 import matplotlib.pyplot as plt
+import plotly.express as px
+import plotly.graph_objects as go
 import seaborn as sns
 from matplotlib.gridspec import GridSpec
 
@@ -235,42 +237,82 @@ with tab3:
     st.title("DLR Headcount")
     st.write("Overall Headcount Information")
 
-    st.dataframe(df_headcount)
 
-    # Sidebar filters
-    st.sidebar.header("Filter Options")
-    pay_group = st.sidebar.multiselect("Pay Group (Person)", options=df_headcount["Pay Group (Person)"].dropna().unique())
-    appointment_status = st.sidebar.multiselect("Appointment Status (Appointment)", options=df_headcount["Appointment Status (Appointment)"].unique())
-    employment_status = st.sidebar.multiselect("Employment Status (Person)", options=df_headcount["Employment Status (Person)"].unique())
-    post_type = st.sidebar.multiselect("Post Type (Post Profile)", options=df_headcount["Post Type (Post Profile)"].unique())
-
-    # Apply filters
-    filtered_df = df_headcount.copy()
-    if pay_group:
-        filtered_df = filtered_df[filtered_df["Pay Group (Person)"].isin(pay_group)]
-    if appointment_status:
-        filtered_df = filtered_df[filtered_df["Appointment Status (Appointment)"].isin(appointment_status)]
-    if employment_status:
-        filtered_df = filtered_df[filtered_df["Employment Status (Person)"].isin(employment_status)]
-    if post_type:
-        filtered_df = filtered_df[filtered_df["Post Type (Post Profile)"].isin(post_type)]
-
-    # Create pivot table
-    pivot_table = pd.pivot_table(
-        filtered_df,
-        index=["Directorate", "Department"],
-        columns="Grade",
-        values="Employee Number (Person)",
-        aggfunc="count",
-        fill_value=0
+    # Filters visible ONLY in this tab
+    payGroup = st.multiselect(
+        "Select Pay Group",
+        options= df_headcount['Pay Group (Person)'].unique(),
+        default=['SALARIES']
     )
 
-    # Display pivot table
-    st.subheader("Pivot Table")
-    st.dataframe(pivot_table)
+    appStatus = st.multiselect(
+        "Select Appointment Status",
+        options= df_headcount['Appointment Status (Appointment)'].unique(),
+        default=['CO']
+    )
 
-    # Display heatmap
-    st.subheader("Heatmap of Headcount by Grade")
-    fig, ax = plt.subplots(figsize=(12, 8))
-    sns.heatmap(pivot_table, annot=True, fmt="d", cmap="YlGnBu", ax=ax)
-    st.pyplot(fig)
+    EmpStatus = st.multiselect(
+        "Select Employment Status",
+        options= (df_headcount['Employment Status (Person)'].unique()),
+        default=['Live']
+    )
+
+    postType = st.multiselect(
+        "Select Post Type",
+        options= (df_headcount['Post Type (Post Profile)'].unique()),
+        default=['PW']
+    )
+
+    
+    # Apply filters dynamically
+    filtered_df = df_headcount.copy()
+    if payGroup:
+        filtered_df = filtered_df[filtered_df['Pay Group (Person)'].isin(payGroup)]
+    if appStatus:
+        filtered_df = filtered_df[filtered_df['Appointment Status (Appointment)'].isin(appStatus)]
+    if EmpStatus:
+        filtered_df = filtered_df[filtered_df['Employment Status (Person)'].isin(EmpStatus)]
+    if postType:
+        filtered_df = filtered_df[filtered_df['Post Type (Post Profile)'].isin(postType)]
+
+
+    # 1. Prepare data with Grade labels
+    sunburst_df = filtered_df.groupby(['Directorate', 'Department', 'Grade'])['Employee Number (Person)'].count().reset_index()
+    sunburst_df.rename(columns={'Employee Number (Person)': 'Headcount'}, inplace=True)
+    sunburst_df['Grade Label'] = 'Grade ' + sunburst_df['Grade'].astype(str)
+
+    # 2. Calculate total headcount for filtered data
+    total_headcount = sunburst_df['Headcount'].sum()
+
+    # 3. Show total headcount as title
+    st.subheader(f"Total Headcount (Filtered): {total_headcount}")
+
+    # 4. Create Sunburst chart
+    fig = px.sunburst(
+        sunburst_df,
+        path=['Directorate', 'Department', 'Grade Label'],  # Use Grade Label for clarity
+        values='Headcount',
+        color='Directorate',  # Colour by Directorate
+        title="Headcount Hierarchy",
+        width=950,
+        height=950
+    )
+
+    # 5. Improve text readability
+    fig.update_traces(
+        textinfo='label+value',  # Show both label and headcount
+        insidetextorientation='radial',  # Uniform orientation
+        hovertemplate='<b>%{label}</b><br>Headcount: %{value}<extra></extra>'
+    )
+
+    # 6. Display chart in Streamlit
+    st.plotly_chart(fig, use_container_width=True)
+
+    # 7. Add download button for filtered data
+    csv = filtered_df.to_csv(index=False)
+    st.download_button(
+        label="Download Filtered Data as CSV",
+        data=csv,
+        file_name="filtered_headcount.csv",
+        mime="text/csv"
+    )
