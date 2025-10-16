@@ -10,10 +10,10 @@ from matplotlib.gridspec import GridSpec
 
 url = 'https://raw.githubusercontent.com/AwsAl-CCT/dlr_hr_analytics/refs/heads/main/QVal.csv'
 response = requests.get(url)
-url_headcount = 'https://raw.githubusercontent.com/AwsAl-CCT/dlr_hr_analytics/refs/heads/main/All-headcount-streamlit.csv'
+url_headcount = 'https://raw.githubusercontent.com/AwsAl-CCT/dlr_hr_analytics/refs/heads/main/headcount_with_leaves.csv'
 response_headcount = requests.get(url_headcount)
 df = pd.read_csv(StringIO(response.text), encoding='utf-16', delimiter='\t')
-# df_raw = pd.read_csv(StringIO(response_headcount.text), encoding='utf-16', header=None)
+df_headcount = pd.read_csv(url_headcount, encoding='utf-8')
 
 
 from matplotlib.ticker import MultipleLocator, FuncFormatter
@@ -234,20 +234,6 @@ with tab2:
 with tab3:
     st.title("DLR Headcount")
     st.write("Overall Headcount Information")
-    
-    # Step 1: Read raw text
-    raw_text = response_headcount.text
-
-    # Step 2: Split into lines and remove empty or malformed rows
-    lines = [line for line in raw_text.splitlines() if line.strip() and "Total" not in line]
-
-    # Step 3: Extract header and data
-    header = lines[0].split(',')  # or use '\t' if tab-delimited
-    data = [line.split(',') for line in lines[1:] if len(line.split(',')) == len(header)]
-
-    # Step 4: Create DataFrame
-    df_headcount = pd.DataFrame(data, columns=header)
-
 
     st.dataframe(df_headcount)
 
