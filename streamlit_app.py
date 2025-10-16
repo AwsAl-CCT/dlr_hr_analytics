@@ -281,8 +281,6 @@ with tab3:
         filtered_df = filtered_df[filtered_df['Post Type (Post Profile)'].isin(postType)]
 
 
-    st.subheader("Pivot Table View")
-    st.dataframe(pivot_df, use_container_width=True)
 
     # --- Sunburst Chart ---
     sunburst_df = filtered_df.groupby(['Directorate', 'Department', 'Grade'])['Employee Number (Person)'].count().reset_index()
@@ -325,6 +323,8 @@ with tab3:
     )
 
     # --- Pivot Table optional ---
+    # st.subheader("Pivot Table View")
+    # st.dataframe(pivot_df, use_container_width=True)
     # pivot_df = filtered_df.pivot_table(
     #     index=['Directorate', 'Department'],
     #     columns='Grade',
