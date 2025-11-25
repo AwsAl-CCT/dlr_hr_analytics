@@ -25,15 +25,22 @@ from matplotlib.gridspec import GridSpec
 df.columns = df.columns.str.replace(r'[^\x00-\x7F]+', '', regex=True)
 
 # Convert hourly rate to numeric
-df['Avg. Hourly Rate of Pay (Current Year)'] = df['Avg. Hourly Rate of Pay (Current Year)'].replace('[^\\d.]', '', regex=True).astype(float)
+df['Avg. Hourly Rate of Pay'] = df['Avg. Hourly Rate of Pay'].replace('[^\\d.]', '', regex=True).astype(float)
 
 # Convert 'Date Joined (Person)' to datetime and extract year
-df['Date Joined (Person)'] = pd.to_datetime(df['Date Joined (Person)'], errors='coerce', dayfirst=True)
-df['Year Joined'] = df['Date Joined (Person)'].dt.year
+df['Date Joined'] = pd.to_datetime(df['Date Joined'], errors='coerce', dayfirst=True)
+df['Year Joined'] = df['Date Joined'].dt.year
 
 # Sort age and service ranges
-age_order = sorted(df['Age Range at Snapshot Date'].unique())
-service_order = sorted(df['Length of Service Range at Snapshot Date'].unique(), key=lambda x: int(x.split('-')[0]) if '-' in x else 100)
+
+
+age_order = sorted(
+    [str(r) for r in df['Age Range'].unique()],
+    key=lambda r: int(r.split('-')[0].strip()) if '-' in r else 999
+)
+
+service_order = sorted([str(x) for x in df['Length of Service Range'].dropna().unique()], key=lambda x: int(x.split('-')[0]) if '-' in x else 100)
+
 
 # Irish language proficiency data
 irish_data = {
@@ -49,7 +56,7 @@ irish_data = {
 irish_df = pd.DataFrame(irish_data)
 
 # Set tabs
-tab1, tab2, tab3 = st.tabs(["📊 HR Dashboard", "🗣️ Irish Language Proficiency", "Headcount"])
+tab1, tab2, tab3 = st.tabs(["📊 HR Dashboard", "🗣️ Irish Language Proficiency", "👥 Headcount"])
 
 
 with tab1:
@@ -73,13 +80,13 @@ with tab1:
     ]
 
     # Plot 1: Gender Distribution
-    sns.countplot(ax=axes[0], x="Gender (Person)", hue="Gender (Person)", data=df, palette="Set2", legend=False)
+    sns.countplot(ax=axes[0], x="Gender", hue="Gender", data=df, palette="Set2", legend=False)
     axes[0].set_title("Gender Distribution")
     axes[0].set_xlabel("Gender")
 
     # Plot 2: Boxplot of Hourly Rate by Employee Category
-    sns.boxplot(ax=axes[1], x="Category at Snapshot Date", y="Avg. Hourly Rate of Pay (Current Year)",
-                hue="Category at Snapshot Date", data=df, palette="Set3", legend=False)
+    sns.boxplot(ax=axes[1], x="Category", y="Avg. Hourly Rate of Pay",
+                hue="Category", data=df, palette="Set3", legend=False)
     axes[1].set_title("Hourly Rate by Employee Category")
     axes[1].set_xlabel("Employee Category")
     axes[1].tick_params(axis='x', rotation=45)
@@ -87,30 +94,30 @@ with tab1:
     axes[1].yaxis.set_major_locator(plt.MaxNLocator(5))
 
     # Plot 3: Employee Status Distribution
-    sns.countplot(ax=axes[2], x="Employee Status at Snapshot Date", hue="Employee Status at Snapshot Date",
+    sns.countplot(ax=axes[2], x="Employee Status", hue="Employee Status",
                 data=df, palette="Set1", legend=False)
     axes[2].set_title("Employee Status Distribution")
     axes[2].set_xlabel("Employee Status")
     axes[2].tick_params(axis='x', rotation=45)
 
     # Plot 4: Violin Plot of Hourly Rate by Age Range
-    sns.violinplot(ax=axes[3], x="Age Range at Snapshot Date", y="Avg. Hourly Rate of Pay (Current Year)",
-                hue="Age Range at Snapshot Date", data=df, palette="coolwarm", order=age_order, legend=False)
+    sns.violinplot(ax=axes[3], x="Age Range", y="Avg. Hourly Rate of Pay",
+                hue="Age Range", data=df, palette="coolwarm", order=age_order, legend=False)
     axes[3].set_title("Hourly Rate by Age Range")
     axes[3].set_xlabel("Age Range")
     axes[3].set_ylabel("Avg. Hourly Rate of Pay")
     axes[3].yaxis.set_major_locator(plt.MaxNLocator(5))
 
     # Plot 5: Length of Service Distribution
-    sns.countplot(ax=axes[4], x="Length of Service Range at Snapshot Date",
-                hue="Length of Service Range at Snapshot Date", data=df,
+    sns.countplot(ax=axes[4], x="Length of Service Range",
+                hue="Length of Service Range", data=df,
                 palette="Blues", order=service_order, legend=False)
     axes[4].set_title("Length of Service Distribution")
     axes[4].set_xlabel("Length of Service Range")
     axes[4].tick_params(axis='x', rotation=45)
 
     # Plot 6: Employee Count by Category and Status (log scale, readable labels, legend restored)
-    sns.countplot(ax=axes[5], x="Category at Snapshot Date", hue="Employee Status at Snapshot Date", data=df, palette="Set2")
+    sns.countplot(ax=axes[5], x="Category", hue="Employee Status", data=df, palette="Set2")
     axes[5].set_title("Employee Count by Category and Status")
     axes[5].set_xlabel("Employee Category")
     axes[5].tick_params(axis='x', rotation=45)
