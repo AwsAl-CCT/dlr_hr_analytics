@@ -9,13 +9,19 @@ import seaborn as sns
 from matplotlib.gridspec import GridSpec
 
 
+@st.cache_data
+def load_data():
+    url = 'https://raw.githubusercontent.com/AwsAl-CCT/dlr_hr_analytics/refs/heads/main/QVal.csv'
+    response = requests.get(url)
+    url_headcount = 'https://raw.githubusercontent.com/AwsAl-CCT/dlr_hr_analytics/refs/heads/main/headcount_with_leaves.csv'
+    response_headcount = requests.get(url_headcount)
+    df = pd.read_csv(StringIO(response.text), encoding='utf-16', delimiter='\t')
+    df_headcount = pd.read_csv(url_headcount, encoding='utf-8')
+    url_leave = "https://github.com/AwsAl-CCT/dlr_hr_analytics/raw/main/Person%20Balances.xlsx"
+    df_leave = pd.read_excel(url_leave, engine="openpyxl")
+    return df, df_headcount, df_leave
 
-url = 'https://raw.githubusercontent.com/AwsAl-CCT/dlr_hr_analytics/refs/heads/main/QVal.csv'
-response = requests.get(url)
-url_headcount = 'https://raw.githubusercontent.com/AwsAl-CCT/dlr_hr_analytics/refs/heads/main/headcount_with_leaves.csv'
-response_headcount = requests.get(url_headcount)
-df = pd.read_csv(StringIO(response.text), encoding='utf-16', delimiter='\t')
-df_headcount = pd.read_csv(url_headcount, encoding='utf-8')
+df, df_headcount, df_leave = load_data()
 
 
 from matplotlib.ticker import MultipleLocator, FuncFormatter
@@ -56,7 +62,7 @@ irish_data = {
 irish_df = pd.DataFrame(irish_data)
 
 # Set tabs
-tab1, tab2, tab3 = st.tabs(["📊 HR Dashboard", "🗣️ Irish Language Proficiency", "👥 Headcount"])
+tab1, tab2, tab3, tab4= st.tabs(["📊 HR Dashboard", "🗣️ Irish Language Proficiency", "👥 Headcount", "Leave Analytics"])
 
 
 with tab1:
@@ -329,13 +335,161 @@ with tab3:
         mime="text/csv"
     )
 
-    # --- Pivot Table optional ---
-    # st.subheader("Pivot Table View")
-    # st.dataframe(pivot_df, use_container_width=True)
-    # pivot_df = filtered_df.pivot_table(
-    #     index=['Directorate', 'Department'],
-    #     columns='Grade',
-    #     values='Employee Number (Person)',
-    #     aggfunc='count',
-    #     fill_value=0
-    # ).reset_index()
+with tab4:
+    st.title("Leave Analytics")
+    st.write("Leave takers behaviour")
+
+    # -------------------------------------------------------------------
+    # DATA PREP
+    # -------------------------------------------------------------------
+    df = df_leave.copy()
+
+    numeric_cols = ["Balance", "Taken", "Total Entitlement"]
+    for c in numeric_cols:
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce")
+
+    df = df.dropna(subset=["Balance"])
+
+    # -------------------------------------------------------------------
+    # GLOBAL FILTER (NO HEADER, NO SPACING)
+    # -------------------------------------------------------------------
+    filter_container = st.container()
+    with filter_container:
+        if "Directorate (Person)" in df.columns:
+            dirs = ["All"] + sorted(df["Directorate (Person)"].dropna().unique().tolist())
+            selected_dir = st.selectbox("", dirs, index=0)
+        else:
+            selected_dir = "All"
+
+    df_filtered = df.copy()
+    if selected_dir != "All":
+        df_filtered = df_filtered[df_filtered["Directorate (Person)"] == selected_dir]
+
+
+    # -------------------------------------------------------------------
+    # KPI CARDS
+    # -------------------------------------------------------------------
+    colA, colB, colC = st.columns(3)
+
+    with colA:
+        st.metric("Average Leave Balance", f"{df_filtered['Balance'].mean():.1f} days")
+
+    with colB:
+        st.metric(
+            "Average Leave Taken",
+            f"{df_filtered['Taken'].mean():.1f} days" if "Taken" in df.columns else "N/A"
+        )
+
+    with colC:
+        st.metric("Employees Included", f"{len(df_filtered)}")
+
+
+    # -------------------------------------------------------------------
+    # TOP ROW
+    # -------------------------------------------------------------------
+    col1, col2 = st.columns(2)
+
+    # ===========================
+    # HISTOGRAM
+    # ===========================
+    with col1:
+        st.markdown("Leave balance distribution")
+
+        NBINS = 20
+
+        fig_hist = px.histogram(
+            df_filtered,
+            x="Balance",
+            nbins=NBINS,
+            labels={"Balance": "Leave Balance (days)", "count": "Employees count"},
+            title=""
+        )
+        fig_hist.update_layout(template="plotly_white", bargap=0.05, margin=dict(t=10))
+
+        # KDE overlay
+        kde_fig, ax = plt.subplots()
+        sns.kdeplot(x=df_filtered["Balance"], ax=ax)
+        line = ax.lines[0]
+        xs = line.get_xdata()
+        ys = line.get_ydata()
+        plt.close(kde_fig)
+
+        bin_width = (df_filtered["Balance"].max() - df_filtered["Balance"].min()) / NBINS
+        ys_scaled = ys * len(df_filtered) * bin_width
+
+        fig_hist.add_trace(go.Scatter(
+            x=xs, y=ys_scaled,
+            mode="lines",
+            line=dict(width=2),
+            showlegend=False
+        ))
+
+        st.plotly_chart(fig_hist, use_container_width=True, config={"displayModeBar": False})
+
+
+    # ===========================
+    # SCATTER
+    # ===========================
+    with col2:
+        st.markdown("Leave taken vs leave balance")
+
+        if "Taken" in df.columns and "Directorate (Person)" in df.columns:
+
+            fig_scatter = px.scatter(
+                df_filtered,
+                x="Taken",
+                y="Balance",
+                color="Directorate (Person)",
+                opacity=0.85,
+                trendline="ols",
+                labels={"Taken": "Leave Taken (days)", "Balance": "Leave Balance (days)"},
+                title=""
+            )
+
+            fig_scatter.update_layout(
+                template="plotly_white",
+                showlegend=False,
+                margin=dict(t=10)
+            )
+
+            st.plotly_chart(fig_scatter, use_container_width=True, config={"displayModeBar": False})
+
+        else:
+            st.info("Scatter plot requires 'Taken' & 'Directorate (Person)' columns.")
+
+
+    # -------------------------------------------------------------------
+    # BOTTOM ROW — ALWAYS SHOW ALL DIRECTORATES
+    # -------------------------------------------------------------------
+    st.markdown("---")
+    st.markdown("Remaining leave by directorate")
+
+    if "Directorate (Person)" in df.columns:
+
+        df_dir = (
+            df.groupby("Directorate (Person)", as_index=False)["Balance"]
+            .mean()
+            .sort_values("Balance", ascending=True)
+            .rename(columns={"Balance": "Avg Remaining"})
+        )
+
+        fig_bar = px.bar(
+            df_dir,
+            x="Avg Remaining",
+            y="Directorate (Person)",
+            orientation="h",
+            labels={"Avg Remaining": "Remaining Leave (days)"},
+            title=""
+        )
+
+        fig_bar.update_layout(
+            template="plotly_white",
+            margin=dict(t=10),
+            yaxis_title=None  # ← REMOVE AXIS TITLE
+        )
+
+        st.plotly_chart(fig_bar, use_container_width=True, config={"displayModeBar": False})
+
+    else:
+        st.info("Directorate column missing; bottom chart cannot be drawn.")
