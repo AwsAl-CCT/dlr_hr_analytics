@@ -62,7 +62,7 @@ irish_data = {
 irish_df = pd.DataFrame(irish_data)
 
 # Set tabs
-tab1, tab2, tab3, tab4= st.tabs(["📊 HR Dashboard", "🗣️ Irish Language Proficiency", "👥 Headcount", "Leave Analytics"])
+tab1, tab2, tab3, tab4= st.tabs(["📊 HR Dashboard", "🗣️ Irish Language Proficiency", "👥 Headcount", "🏖️ Leave Analytics"])
 
 
 with tab1:
