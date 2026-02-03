@@ -15,14 +15,13 @@ def load_data():
     response = requests.get(url)
     url_headcount = 'https://raw.githubusercontent.com/AwsAl-CCT/dlr_hr_analytics/refs/heads/main/headcount_with_leaves.csv'
     response_headcount = requests.get(url_headcount)
-    df = pd.read_csv(StringIO(response.text), encoding='utf-16', delimiter='\t')
+    df = pd.read_csv(StringIO(response.text), encoding='utf-8', sep=',')
     df_headcount = pd.read_csv(url_headcount, encoding='utf-8')
     url_leave = "https://github.com/AwsAl-CCT/dlr_hr_analytics/raw/main/Person%20Balances.xlsx"
     df_leave = pd.read_excel(url_leave, engine="openpyxl")
     return df, df_headcount, df_leave
 
 df, df_headcount, df_leave = load_data()
-
 
 from matplotlib.ticker import MultipleLocator, FuncFormatter
 from matplotlib.gridspec import GridSpec
@@ -31,7 +30,7 @@ from matplotlib.gridspec import GridSpec
 df.columns = df.columns.str.replace(r'[^\x00-\x7F]+', '', regex=True)
 
 # Convert hourly rate to numeric
-df['Avg. Hourly Rate of Pay'] = df['Avg. Hourly Rate of Pay'].replace('[^\\d.]', '', regex=True).astype(float)
+df['Avg. Hourly Rate of Pay'] = df['Hourly Rate of Pay'].replace('[^\\d.]', '', regex=True).astype(float)
 
 # Convert 'Date Joined (Person)' to datetime and extract year
 df['Date Joined'] = pd.to_datetime(df['Date Joined'], errors='coerce', dayfirst=True)
