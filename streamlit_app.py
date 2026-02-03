@@ -121,14 +121,23 @@ with tab1:
     axes[4].set_xlabel("Length of Service Range")
     axes[4].tick_params(axis='x', rotation=45)
 
-    # Plot 6: Employee Count by Category and Status (log scale, readable labels, legend restored)
-    sns.countplot(ax=axes[5], x="Category", hue="Employee Status", data=df, palette="Set2")
-    axes[5].set_title("Employee Count by Category and Status")
+    # Plot 6: Total Employee Count by Category (ignore status)
+    sns.countplot(
+        ax=axes[5],
+        x="Category",
+        data=df,
+        palette="Set2"  # optional; applies one color per category
+    )
+    axes[5].set_title("Total Employee Count by Category")
     axes[5].set_xlabel("Employee Category")
     axes[5].tick_params(axis='x', rotation=45)
+
+    # Optional: log scale (keep if needed; remove if not)
     axes[5].set_yscale("log")
-    axes[5].yaxis.set_major_formatter(FuncFormatter(lambda y, _: f'{int(y):,}'))  # Human-readable
-    axes[5].legend(title="Employee Status", bbox_to_anchor=(1.05, 1), loc='upper left')
+    axes[5].yaxis.set_major_formatter(FuncFormatter(lambda y, _: f'{int(y):,}'))
+    # No legend needed anymore
+    axes[5].legend_.remove() if axes[5].get_legend() else None
+
 
     # Plot 7: Employees Joined Per Year (line plot, 2000–2025, 5-year ticks)
     yearly_joined = df['Year Joined'].value_counts().sort_index()
