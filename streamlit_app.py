@@ -59,107 +59,146 @@ irish_data = {
     "Level 3+": [1, 19, 7, 5, 0, 5, 8, 1, 9]
 }
 irish_df = pd.DataFrame(irish_data)
+st.set_page_config(layout="wide")
 
 # Set tabs
 tab1, tab2, tab3, tab4= st.tabs(["📊 HR Dashboard", "🗣️ Irish Language Proficiency", "👥 Headcount", "🏖️ Leave Analytics"])
 
 
 with tab1:
-
-    # Set style
-    sns.set(style="whitegrid")
-
-    # Create custom grid layout
-    fig = plt.figure(figsize=(20, 18))
-    gs = GridSpec(3, 3, figure=fig)
-
-    # Define axes using the grid
-    axes = [
-        fig.add_subplot(gs[0, 0]),  # Gender Distribution
-        fig.add_subplot(gs[0, 1]),  # Hourly Rate by Category
-        fig.add_subplot(gs[0, 2]),  # Employee Status Distribution
-        fig.add_subplot(gs[1, 0]),  # Hourly Rate by Age Range
-        fig.add_subplot(gs[1, 1]),  # Length of Service Distribution
-        fig.add_subplot(gs[1, 2]),  # Employee Count by Category and Status
-        fig.add_subplot(gs[2, :])   # Employees Joined Per Year (full width)
-    ]
-
-    # Plot 1: Gender Distribution
-    sns.countplot(ax=axes[0], x="Gender", hue="Gender", data=df, palette="Set2", legend=False)
-    axes[0].set_title("Gender Distribution")
-    axes[0].set_xlabel("Gender")
-
-    # Plot 2: Boxplot of Hourly Rate by Employee Category
-    sns.boxplot(ax=axes[1], x="Category", y="Avg. Hourly Rate of Pay",
-                hue="Category", data=df, palette="Set3", legend=False)
-    axes[1].set_title("Hourly Rate by Employee Category")
-    axes[1].set_xlabel("Employee Category")
-    axes[1].tick_params(axis='x', rotation=45)
-    axes[1].set_ylabel("Avg. Hourly Rate of Pay")
-    axes[1].yaxis.set_major_locator(plt.MaxNLocator(5))
-
-    # Plot 3: Employee Status Distribution
-    sns.countplot(ax=axes[2], x="Employee Status", hue="Employee Status",
-                data=df, palette="Set1", legend=False)
-    axes[2].set_title("Employee Status Distribution")
-    axes[2].set_xlabel("Employee Status")
-    axes[2].tick_params(axis='x', rotation=45)
-
-    # Plot 4: Violin Plot of Hourly Rate by Age Range
-    sns.violinplot(ax=axes[3], x="Age Range", y="Avg. Hourly Rate of Pay",
-                hue="Age Range", data=df, palette="coolwarm", order=age_order, legend=False)
-    axes[3].set_title("Hourly Rate by Age Range")
-    axes[3].set_xlabel("Age Range")
-    axes[3].set_ylabel("Avg. Hourly Rate of Pay")
-    axes[3].yaxis.set_major_locator(plt.MaxNLocator(5))
-
-    # Plot 5: Length of Service Distribution
-    sns.countplot(ax=axes[4], x="Length of Service Range",
-                hue="Length of Service Range", data=df,
-                palette="Blues", order=service_order, legend=False)
-    axes[4].set_title("Length of Service Distribution")
-    axes[4].set_xlabel("Length of Service Range")
-    axes[4].tick_params(axis='x', rotation=45)
-
-    # Plot 6: Total Employee Count by Category (ignore status)
-    sns.countplot(
-        ax=axes[5],
-        x="Category",
-        data=df,
-        palette="Set2"  # optional; applies one color per category
-    )
-    axes[5].set_title("Total Employee Count by Category")
-    axes[5].set_xlabel("Employee Category")
-    axes[5].tick_params(axis='x', rotation=45)
-
-    # Optional: log scale (keep if needed; remove if not)
-    axes[5].set_yscale("log")
-    axes[5].yaxis.set_major_formatter(FuncFormatter(lambda y, _: f'{int(y):,}'))
-    # No legend needed anymore
-    axes[5].legend_.remove() if axes[5].get_legend() else None
-
-
-    # Plot 7: Employees Joined Per Year (line plot, 2000–2025, 5-year ticks)
-    yearly_joined = df['Year Joined'].value_counts().sort_index()
-    axes[6].plot(yearly_joined.index, yearly_joined.values, marker='o', linestyle='-', color='teal')
-    axes[6].set_title("Employees Joined Per Year")
-    axes[6].set_xlabel("Year")
-    axes[6].set_ylabel("Number of Employees")
-    axes[6].tick_params(axis='x', rotation=45)
-    axes[6].xaxis.set_major_locator(MultipleLocator(5))
-    axes[6].set_xlim(2000, 2025)
-
-    # Final layout
-    plt.tight_layout()
-
-
-
     st.title("DLR HR Analytics")
-    st.write(
-        "Main Dashboard for HR"
+    st.write("Main Dashboard for HR")
+
+    # -----------------------------
+    # LAYOUT: 2 x 3 + 1 wide
+    # -----------------------------
+    col1, col2, col3 = st.columns(3)
+    col4, col5, col6 = st.columns(3)
+
+    # -----------------------------
+    # 1. Gender Distribution
+    # -----------------------------
+    with col1:
+        fig_gender = px.histogram(
+            df,
+            x="Gender",
+            color="Gender",
+            template="plotly_white",
+            title="Gender Distribution"
+        )
+        fig_gender.update_layout(showlegend=False)
+        st.plotly_chart(fig_gender, use_container_width=True)
+
+    # -----------------------------
+    # 2. Hourly Rate by Category (BOX) - RESET
+    # -----------------------------
+    with col2:
+        fig_box = px.box(
+            df,
+            x="Category",
+            y="Avg. Hourly Rate of Pay",
+            color="Category",
+            template="plotly_white",
+            title="Hourly Rate by Category"
+        )
+        fig_box.update_layout(showlegend=False)
+        fig_box.update_xaxes(tickangle=45)
+        st.plotly_chart(fig_box, use_container_width=True)
+
+    # -----------------------------
+    # 3. Employee Status Distribution
+    # -----------------------------
+    with col3:
+        fig_status = px.histogram(
+            df,
+            x="Employee Status",
+            color="Employee Status",
+            template="plotly_white",
+            title="Employee Status Distribution"
+        )
+        fig_status.update_layout(showlegend=False)
+        fig_status.update_xaxes(tickangle=45)
+        st.plotly_chart(fig_status, use_container_width=True)
+
+    # -----------------------------
+    # 4. Hourly Rate by Age Range (VIOLIN) - RESET
+    # -----------------------------
+    with col4:
+        fig_violin = px.violin(
+            df,
+            x="Age Range",
+            y="Avg. Hourly Rate of Pay",
+            color="Age Range",
+            category_orders={"Age Range": age_order},
+            template="plotly_white",
+            title="Hourly Rate by Age Range",
+            points=False           # no dots
+            # box=True REMOVED
+        )
+
+        fig_violin.update_traces(
+            scalemode="width",     # ✅ Seaborn-like width
+            width=0.8              # ✅ fuller violins
+        )
+
+        fig_violin.update_layout(showlegend=False)
+        st.plotly_chart(fig_violin, use_container_width=True)
+
+
+    # -----------------------------
+    # 5. Length of Service Distribution
+    # -----------------------------
+    with col5:
+        fig_service = px.histogram(
+            df,
+            x="Length of Service Range",
+            color="Length of Service Range",
+            category_orders={"Length of Service Range": service_order},
+            template="plotly_white",
+            title="Length of Service Distribution"
+        )
+        fig_service.update_layout(showlegend=False)
+        fig_service.update_xaxes(tickangle=45)
+        st.plotly_chart(fig_service, use_container_width=True)
+
+    # -----------------------------
+    # 6. Total Employee Count by Category
+    # -----------------------------
+    with col6:
+        fig_category = px.histogram(
+            df,
+            x="Category",
+            color="Category",
+            template="plotly_white",
+            title="Total Employee Count by Category"
+        )
+        fig_category.update_layout(showlegend=False)
+        fig_category.update_xaxes(tickangle=45)
+        st.plotly_chart(fig_category, use_container_width=True)
+
+    # -----------------------------
+    # 7. Employees Joined Per Year (5-year ticks)
+    # -----------------------------
+    st.markdown("---")
+
+    yearly_joined = (
+        df.groupby("Year Joined")
+          .size()
+          .reset_index(name="Count")
+          .sort_values("Year Joined")
     )
 
-    st.pyplot(fig)
+    fig_line = px.line(
+        yearly_joined,
+        x="Year Joined",
+        y="Count",
+        markers=True,
+        template="plotly_white",
+        title="Employees Joined Per Year"
+    )
+    fig_line.update_layout(showlegend=False)
+    fig_line.update_xaxes(tickmode="linear", dtick=5)
+    st.plotly_chart(fig_line, use_container_width=True)
 
 
 with tab2:
