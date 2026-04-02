@@ -23,8 +23,50 @@ def load_data():
 
 df, df_headcount, df_leave = load_data()
 
+
+# --- Enrich QVal (df) with Directorate and Department from headcount ---
+hc_lookup = (
+    df_headcount[
+        ["Employee Number (Person)", "Directorate", "Department"]
+    ]
+    .dropna(subset=["Employee Number (Person)"])
+    .drop_duplicates(subset=["Employee Number (Person)"])
+)
+
+# Ensure numeric join keys
+df["Employee Number"] = pd.to_numeric(df["Employee Number"], errors="coerce")
+hc_lookup["Employee Number (Person)"] = pd.to_numeric(
+    hc_lookup["Employee Number (Person)"], errors="coerce"
+)
+
+df = df.merge(
+    hc_lookup,
+    left_on="Employee Number",
+    right_on="Employee Number (Person)",
+    how="left"
+)
+
+# Optional cleanup
+df.drop(columns=["Employee Number (Person)"], inplace=True)
+
 from matplotlib.ticker import MultipleLocator, FuncFormatter
 from matplotlib.gridspec import GridSpec
+
+import plotly.io as pio
+
+pio.templates["excel_muted"] = pio.templates["plotly_white"]
+
+pio.templates["excel_muted"].layout.colorway = [
+    "#4C72B0",
+    "#55A868",
+    "#C44E52",
+    "#8172B2",
+    "#CCB974",
+    "#64B5CD"
+]
+
+pio.templates.default = "excel_muted"
+
 
 # Clean column names
 df.columns = df.columns.str.replace(r'[^\x00-\x7F]+', '', regex=True)
@@ -35,6 +77,7 @@ df['Avg. Hourly Rate of Pay'] = df['Hourly Rate of Pay'].replace('[^\\d.]', '', 
 # Convert 'Date Joined (Person)' to datetime and extract year
 df['Date Joined'] = pd.to_datetime(df['Date Joined'], errors='coerce', dayfirst=True)
 df['Year Joined'] = df['Date Joined'].dt.year
+
 
 # Sort age and service ranges
 
@@ -68,6 +111,48 @@ tab1, tab2, tab3, tab4= st.tabs(["📊 HR Dashboard", "🗣️ Irish Language Pr
 with tab1:
     st.title("DLR HR Analytics")
     st.write("Main Dashboard for HR")
+    # --- Directorate & Department filters ---
+    filter_container = st.container()
+    with filter_container:
+        col_f1, col_f2 = st.columns(2)
+
+        with col_f1:
+            dirs = ["All"] + sorted(df["Directorate"].dropna().unique().tolist())
+            selected_dir = st.selectbox(
+                "Select Directorate",
+                dirs,
+                index=0,
+                key="tab1_directorate"
+            )
+
+        with col_f2:
+            if selected_dir == "All":
+                depts = ["All"] + sorted(df["Department"].dropna().unique().tolist())
+            else:
+                depts = (
+                    ["All"]
+                    + sorted(
+                        df.loc[df["Directorate"] == selected_dir, "Department"]
+                        .dropna()
+                        .unique()
+                        .tolist()
+                    )
+                )
+
+            selected_dept = st.selectbox(
+                "Select Department",
+                depts,
+                index=0,
+                key="tab1_department"
+            )
+    
+    df_tab1 = df.copy()
+
+    if selected_dir != "All":
+        df_tab1 = df_tab1[df_tab1["Directorate"] == selected_dir]
+
+    if selected_dept != "All":
+        df_tab1 = df_tab1[df_tab1["Department"] == selected_dept]
 
     # -----------------------------
     # LAYOUT: 2 x 3 + 1 wide
@@ -79,11 +164,13 @@ with tab1:
     # 1. Gender Distribution
     # -----------------------------
     with col1:
+        gender_colors = {"Female": "#C44E52", "Male": "#4C72B0"}
         fig_gender = px.histogram(
-            df,
+            df_tab1,
             x="Gender",
             color="Gender",
-            template="plotly_white",
+            color_discrete_map=gender_colors,
+            category_orders={"Gender": ["Male", "Female"]},
             title="Gender Distribution"
         )
         fig_gender.update_layout(showlegend=False)
@@ -94,11 +181,10 @@ with tab1:
     # -----------------------------
     with col2:
         fig_box = px.box(
-            df,
+            df_tab1,
             x="Category",
             y="Avg. Hourly Rate of Pay",
             color="Category",
-            template="plotly_white",
             title="Hourly Rate by Category"
         )
         fig_box.update_layout(showlegend=False)
@@ -110,10 +196,9 @@ with tab1:
     # -----------------------------
     with col3:
         fig_status = px.histogram(
-            df,
+            df_tab1,
             x="Employee Status",
             color="Employee Status",
-            template="plotly_white",
             title="Employee Status Distribution"
         )
         fig_status.update_layout(showlegend=False)
@@ -125,20 +210,22 @@ with tab1:
     # -----------------------------
     with col4:
         fig_violin = px.violin(
-            df,
+            df_tab1,
             x="Age Range",
             y="Avg. Hourly Rate of Pay",
             color="Age Range",
             category_orders={"Age Range": age_order},
-            template="plotly_white",
             title="Hourly Rate by Age Range",
             points=False           # no dots
-            # box=True REMOVED
         )
 
         fig_violin.update_traces(
             scalemode="width",     # ✅ Seaborn-like width
-            width=0.8              # ✅ fuller violins
+            width=0.8,              # ✅ fuller violins
+            meanline_visible=True,
+            meanline_color="black",
+            meanline_width=1
+
         )
 
         fig_violin.update_layout(showlegend=False)
@@ -150,11 +237,10 @@ with tab1:
     # -----------------------------
     with col5:
         fig_service = px.histogram(
-            df,
+            df_tab1,
             x="Length of Service Range",
             color="Length of Service Range",
             category_orders={"Length of Service Range": service_order},
-            template="plotly_white",
             title="Length of Service Distribution"
         )
         fig_service.update_layout(showlegend=False)
@@ -166,10 +252,9 @@ with tab1:
     # -----------------------------
     with col6:
         fig_category = px.histogram(
-            df,
+            df_tab1,
             x="Category",
             color="Category",
-            template="plotly_white",
             title="Total Employee Count by Category"
         )
         fig_category.update_layout(showlegend=False)
@@ -182,7 +267,7 @@ with tab1:
     st.markdown("---")
 
     yearly_joined = (
-        df.groupby("Year Joined")
+        df_tab1.groupby("Year Joined")
           .size()
           .reset_index(name="Count")
           .sort_values("Year Joined")
@@ -193,7 +278,6 @@ with tab1:
         x="Year Joined",
         y="Count",
         markers=True,
-        template="plotly_white",
         title="Employees Joined Per Year"
     )
     fig_line.update_layout(showlegend=False)
@@ -223,75 +307,89 @@ with tab2:
     irish_df["% Level 3+"] = (irish_df["Level 3+"] / irish_df["Total"] * 100).round(0).astype(int)
     irish_df = irish_df.sort_values("Total", ascending=False)
 
-    # Custom colors
-    color_no_irish = "#4D9A94"      # red
-    color_some_irish = "#D8B6A4"    # orange
-    color_level3 = "#F28C28"        # green
-
-    # --- Vertical summary chart ---
-    summary_totals = {
-        "No Irish": irish_df["No Irish"].sum(),
-        "Some Irish": irish_df["Some Irish"].sum(),
-        "Level 3+": irish_df["Level 3+"].sum()
+    # Colors
+    color_map = {
+        "No Irish": "#4D9A94",
+        "Some Irish": "#D8B6A4",
+        "Level 3+": "#F28C28"
     }
-    total_all = sum(summary_totals.values())
-    summary_percentages = {k: int(round(v / total_all * 100)) for k, v in summary_totals.items()}
 
-    # Sort by total descending
-    sorted_keys = sorted(summary_totals, key=summary_totals.get, reverse=True)
-    sorted_values = [summary_totals[k] for k in sorted_keys]
-    sorted_colors = [color_no_irish if k == "No Irish" else color_some_irish if k == "Some Irish" else color_level3 for k in sorted_keys]
-    sorted_percentages = [summary_percentages[k] for k in sorted_keys]
+    # -------------------------------------------------
+    # Top summary chart (vertical)
+    # -------------------------------------------------
+    summary = (
+        irish_df[["No Irish", "Some Irish", "Level 3+"]]
+        .sum()
+        .reset_index()
+        .rename(columns={"index": "Level", 0: "Count"})
+    )
 
-    fig_summary, ax_summary = plt.subplots(figsize=(12, 3))
-    bars = ax_summary.bar(sorted_keys, sorted_values, color=sorted_colors)
+    total_all = summary["Count"].sum()
+    summary["Percent"] = (summary["Count"] / total_all * 100).round(0).astype(int)
 
-    # Value labels
-    for bar, value in zip(bars, sorted_values):
-        ax_summary.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 2, str(value),
-                        ha='center', va='bottom')
+    fig_summary = px.bar(
+        summary,
+        x="Level",
+        y="Count",
+        color="Level",
+        color_discrete_map=color_map,
+        title="",
+        text="Count"
+    )
 
-    # Percentages in top-right corner inside chart area, stacked vertically
-    x_pos = len(sorted_keys) - 1.01
-    y_start = max(sorted_values) * 1.15
-    line_spacing = 0.08 * max(sorted_values)
+    fig_summary.update_layout(
+        showlegend=False,
+        yaxis_title=None,
+        xaxis_title=None,
+        bargap=0.4
+    )
 
-    for i, (pct, label, color) in enumerate(zip(sorted_percentages, sorted_keys, sorted_colors)):
-        y_pos = y_start - i * line_spacing
-        ax_summary.text(x_pos, y_pos, f"{pct}%", color=color, ha='right', va='top', fontsize=10)
-        ax_summary.text(x_pos + 0.1, y_pos, f"{label}", color='black', ha='left', va='top', fontsize=10)
-    
+    # Bigger bottom labels (x-axis)
+    fig_summary.update_xaxes(tickfont=dict(size=14))
 
-    ax_summary.set_ylim(0, max(sorted_values) * 1.2)
-    ax_summary.set_yticks([])
-    ax_summary.set_xlabel("")
-    ax_summary.set_ylabel("")
-    ax_summary.set_title("")
-    ax_summary.grid(False)
+    y_start = 0.98
+    y_step = 0.08
 
-    st.pyplot(fig_summary)
+    for i, row in enumerate(summary.itertuples()):
+        fig_summary.add_annotation(
+            x=1,
+            y=y_start - i * y_step,
+            xref="paper",
+            yref="paper",
+            xanchor="right",
+            yanchor="top",
+            text=f"{row.Percent}% {row.Level}",
+            showarrow=False,
+            font=dict(
+                size=13,
+                color=color_map[row.Level]
+            )
+        )
 
-    # --- Horizontal stacked chart ---
+    st.plotly_chart(fig_summary, use_container_width=True)
+
+    # -------------------------------------------------
+    # Horizontal stacked bar chart by Directorate
+    # -------------------------------------------------
     st.write("Irish Language Proficiency by Department")
-    fig2, ax2 = plt.subplots(figsize=(12, 6))
-    ax2.barh(irish_df["Directorate"], irish_df["No Irish"], label="No Irish", color=color_no_irish)
-    ax2.barh(irish_df["Directorate"], irish_df["Some Irish"],
-             left=irish_df["No Irish"], label="Some Irish", color=color_some_irish)
-    ax2.barh(irish_df["Directorate"], irish_df["Level 3+"],
-             left=irish_df["No Irish"] + irish_df["Some Irish"], label="Level 3+", color=color_level3)
 
-    for i, (total, pct) in enumerate(zip(irish_df["Total"], irish_df["% Level 3+"])):
-        ax2.text(total + 2, i, f"{total} ({pct}%)", va='center')
+    fig_stack = px.bar(
+        irish_df,
+        y="Directorate",
+        x=["No Irish", "Some Irish", "Level 3+"],
+        orientation="h",
+        color_discrete_map=color_map,
+        text_auto=True
+    )
 
-    max_total = irish_df["Total"].max()
-    ax2.set_xticks(range(0, max_total + 100, 100))
-    ax2.grid(axis='y', linestyle='', linewidth=0)
-    ax2.set_xlabel("")
-    ax2.set_ylabel("")
-    ax2.set_title("")
-    # ax2.legend()
+    fig_stack.update_layout(
+        barmode="stack",
+        showlegend=False,
+        xaxis_title=None,
+        yaxis_title=None
+    )
 
-    st.pyplot(fig2)
+    st.plotly_chart(fig_stack, use_container_width=True)
 
 with tab3:
     st.title("DLR Headcount")
