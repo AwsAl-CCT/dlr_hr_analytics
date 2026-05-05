@@ -396,40 +396,34 @@ with tab2:
     st.plotly_chart(fig_stack, use_container_width=True)
 
 with tab3:
-    st.title("DLR Headcount")
-    st.write("Overall Headcount Information")
+    st.title("Headcount by Grade")
 
 
-    # --- Horizontal Filters ---
-    col1, col2, col3, col4 = st.columns(4)
+    # --- Friendly labels (what user sees) -> Raw values (what df uses) ---
+    PAYGROUP_LABEL_TO_VALUE = {
+        "Salaries staff": "SALARIES",
+        "Wages staff (Outdoor)": "FORTNIGHTLY WAGES - DLR",
+    }
+    PAYGROUP_BOTH_LABEL = "Both"
 
-    with col1:
-        payGroup = st.multiselect(
-            "Select Pay Group",
-            options=df_headcount['Pay Group (Person)'].unique(),
-            default=['SALARIES']
-        )
+    pay_group_choice = st.radio(
+        label="Pay Group",  # required, but set to hidden below
+        options=[*PAYGROUP_LABEL_TO_VALUE.keys(), PAYGROUP_BOTH_LABEL],
+        index=0,
+        horizontal=True,
+        label_visibility="collapsed"  # ✅ hides label AND removes the space
+    )
 
-    with col2:
-        appStatus = st.multiselect(
-            "Select Appointment Status",
-            options=df_headcount['Appointment Status (Appointment)'].unique(),
-            default=['CO']
-        )
+    if pay_group_choice == PAYGROUP_BOTH_LABEL:
+        payGroup = list(PAYGROUP_LABEL_TO_VALUE.values())
+    else:
+        payGroup = [PAYGROUP_LABEL_TO_VALUE[pay_group_choice]]
 
-    with col3:
-        EmpStatus = st.multiselect(
-            "Select Employment Status",
-            options=df_headcount['Employment Status (Person)'].unique(),
-            default=['Live']
-        )
+    # --- Hidden filters (still applied in the background using defaults) ---
+    appStatus = ["CO"]        # Appointment Status default
+    EmpStatus = ["Live"]      # Employment Status default
+    postType  = ["PW"]        # Post Type default
 
-    with col4:
-        postType = st.multiselect(
-            "Select Post Type",
-            options=df_headcount['Post Type (Post Profile)'].unique(),
-            default=['PW']
-        )
 
     # --- Apply Filters ---
     filtered_df = df_headcount.copy()
@@ -445,26 +439,32 @@ with tab3:
 
 
     # --- Sunburst Chart ---
-    sunburst_df = filtered_df.groupby(['Directorate', 'Department', 'Grade'])['Employee Number (Person)'].count().reset_index()
-    sunburst_df.rename(columns={'Employee Number (Person)': 'Headcount'}, inplace=True)
+   
+    sunburst_df = (
+        filtered_df
+        .groupby(['Directorate', 'Department', 'Grade', 'Post Title (Post Profile)'])['Employee Number (Person)']
+        .nunique()
+        .reset_index(name='Headcount')
+    )
+
 
     # Add Grade Label for clarity
     sunburst_df['Grade Label'] = 'Grade ' + sunburst_df['Grade'].astype(str)
 
     # Calculate total headcount
     total_headcount = sunburst_df['Headcount'].sum()
-    st.subheader(f"Total Headcount (Filtered): {total_headcount}")
+    st.write(f"Total Headcount (Filtered): {total_headcount}")
 
     # Create Sunburst chart
     fig = px.sunburst(
         sunburst_df,
-        path=['Directorate', 'Department', 'Grade Label'],
+        path=['Directorate', 'Department', 'Grade Label', 'Post Title (Post Profile)'],
         values='Headcount',
         color='Directorate',
-        title="Headcount Hierarchy",
         width=950,
         height=950
     )
+    fig.update_layout(margin=dict(t=10, l=10, r=10, b=10))
 
     # Improve text readability
     fig.update_traces(
@@ -541,7 +541,7 @@ with tab4:
         insidetextfont=dict(color="#FAF9F6"),  # inside labels
         outsidetextfont=dict(color="#FAF9F6"), # outside labels (if any)
         textinfo="label+value",
-        hovertemplate="<b>%{label}</b><br>Headcount: %{value}<extra></extra>",
+        hovertemplate="<b>%{label}</b><br>Headcount: %{value}<extra></extra>",  # 
         branchvalues="total",
         marker=dict(line=dict(color="white", width=1))  # ✅ makes root boundary obvious
     )
