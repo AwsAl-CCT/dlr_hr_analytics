@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
 import seaborn as sns
+from streamlit_plotly_events import plotly_events
 from matplotlib.gridspec import GridSpec
 
 
@@ -15,13 +16,16 @@ def load_data():
     response = requests.get(url)
     url_headcount = 'https://raw.githubusercontent.com/AwsAl-CCT/dlr_hr_analytics/refs/heads/main/headcount_with_leaves.csv'
     response_headcount = requests.get(url_headcount)
+    url_Dheadcount = 'https://raw.githubusercontent.com/AwsAl-CCT/dlr_hr_analytics/refs/heads/main/Dheadcount.csv'
+    response_Dheadcount = requests.get(url_Dheadcount)
     df = pd.read_csv(StringIO(response.text), encoding='utf-8', sep=',')
     df_headcount = pd.read_csv(url_headcount, encoding='utf-8')
     url_leave = "https://github.com/AwsAl-CCT/dlr_hr_analytics/raw/main/Person%20Balances.xlsx"
     df_leave = pd.read_excel(url_leave, engine="openpyxl")
-    return df, df_headcount, df_leave
+    Dheadcount = pd.read_csv(StringIO(response_Dheadcount.text), encoding="utf-8", sep=",", skiprows=1, header=0)
+    return df, df_headcount, df_leave, Dheadcount
 
-df, df_headcount, df_leave = load_data()
+df, df_headcount, df_leave, Dheadcount = load_data()
 
 
 # --- Enrich QVal (df) with Directorate and Department from headcount ---
@@ -105,7 +109,7 @@ irish_df = pd.DataFrame(irish_data)
 st.set_page_config(layout="wide")
 
 # Set tabs
-tab1, tab2, tab3, tab4= st.tabs(["📊 HR Dashboard", "🗣️ Irish Language Proficiency", "👥 Headcount", "🏖️ Leave Analytics"])
+tab1, tab2, tab3, tab4, tab5= st.tabs(["📊 HR Dashboard", "🗣️ Irish Language Proficiency", "👥 Headcount by grade", "📊 Headcount by Category", "🏖️ Leave Analytics"])
 
 
 with tab1:
@@ -481,10 +485,98 @@ with tab3:
     )
 
 with tab4:
-    st.title("Leave Analytics")
-    st.write("Leave takers behaviour")
+    st.title("Headcount by Category")
+    st.write("Detailed headcount by Category, Employment Status, and Job Title")
+    
+    # 1) Copy so we don't mutate the original dataframe
+    d = Dheadcount.copy()
 
-    # -------------------------------------------------------------------
+    # Ensure Headcount is numeric and clean text columns
+    d["Headcount"] = pd.to_numeric(d["Headcount"], errors="coerce").fillna(0)
+
+    hierarchy_cols = [
+        "Directorate Description",
+        "Department Description",
+        "Department Returns Category Description",
+        "Employee Status Desc",
+        "Substantive Grade Description",
+        "Forename And Surname"
+    ]
+
+    # Strip whitespace and replace blanks with "Unknown"
+    for c in hierarchy_cols:
+        d[c] = d[c].astype(str).str.strip()
+        d.loc[d[c].isin(["", "nan", "None"]), c] = "Unknown"
+
+    # If the same person name appears multiple times, icicle may merge them.
+    # To guarantee a unique leaf per person, create a unique label.
+    # (Still shows name, but prevents accidental merging)
+    if "Person Reference" in d.columns:
+        d["Person Label"] = d["Forename And Surname"] + " (" + d["Person Reference"].astype(str) + ")"
+        path_cols = [
+            "Directorate Description",
+            "Department Description",
+            "Department Returns Category Description",
+            "Employee Status Desc",
+            "Substantive Grade Description",
+            "Person Label"
+        ]
+    else:
+        path_cols = hierarchy_cols
+
+    # 4) Build icicle figure
+    
+    ROOT_LABEL = "DLR Total"
+
+    fig = px.icicle(
+        d,
+        path=[px.Constant(ROOT_LABEL)] + path_cols,
+        values="Headcount",
+        color="Directorate Description",
+        maxdepth=5,
+    )
+
+    fig.update_traces(
+        textfont=dict(color="#FAF9F6"),        # affects root + general text rendering
+        insidetextfont=dict(color="#FAF9F6"),  # inside labels
+        outsidetextfont=dict(color="#FAF9F6"), # outside labels (if any)
+        textinfo="label+value",
+        hovertemplate="<b>%{label}</b><br>Headcount: %{value}<extra></extra>",
+        branchvalues="total",
+        marker=dict(line=dict(color="white", width=1))  # ✅ makes root boundary obvious
+    )
+
+
+    trace = fig.data[0]
+
+    # Plotly stores a color per node in marker.colors
+    colors = list(trace.marker.colors)
+
+    # Find the root node index (label matches ROOT_LABEL and parent is empty)
+    root_idx = next(
+        i for i, (lbl, parent) in enumerate(zip(trace.labels, trace.parents))
+        if (lbl == ROOT_LABEL) and (parent == "")
+    )
+
+    colors[root_idx] = "#CC5500"  # orange
+    trace.marker.colors = colors
+
+
+    fig.update_layout(
+        margin=dict(t=20, l=10, r=10, b=10),
+        height=750
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+
+
+
+
+with tab5:
+    st.title("Leave Balances")
+    st.write("Leave takers behaviour")
+        # -------------------------------------------------------------------
     # DATA PREP
     # -------------------------------------------------------------------
     df = df_leave.copy()
