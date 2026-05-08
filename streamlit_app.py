@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
 import seaborn as sns
-from streamlit_plotly_events import plotly_events
 from matplotlib.gridspec import GridSpec
 
 
