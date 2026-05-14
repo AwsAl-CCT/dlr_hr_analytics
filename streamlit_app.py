@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import requests
+import re
 from io import StringIO
 import matplotlib.pyplot as plt
 import plotly.express as px
@@ -84,11 +85,32 @@ df['Year Joined'] = df['Date Joined'].dt.year
 
 # Sort age and service ranges
 
+def age_sort_key(r):
+    r = str(r).strip().lower()
 
-age_order = sorted(
-    [str(r) for r in df['Age Range'].unique()],
-    key=lambda r: int(r.split('-')[0].strip()) if '-' in r else 999
-)
+    # Put "and under" / "under" / "<=" first
+    if "under" in r:
+        nums = re.findall(r"\d+", r)
+        return (-1, int(nums[0]) if nums else 0)
+
+    # Put "xx+" at the end but still sortable
+    if "+" in r:
+        nums = re.findall(r"\d+", r)
+        return (2, int(nums[0]) if nums else 999)
+
+    # Standard ranges like "21-30"
+    if "-" in r:
+        try:
+            return (1, int(r.split("-")[0].strip()))
+        except:
+            return (1, 999)
+
+    # Fallback
+    nums = re.findall(r"\d+", r)
+    return (1, int(nums[0]) if nums else 999)
+
+age_order = sorted(df["Age Range"].dropna().unique().tolist(), key=age_sort_key)
+
 
 service_order = sorted([str(x) for x in df['Length of Service Range'].dropna().unique()], key=lambda x: int(x.split('-')[0]) if '-' in x else 100)
 
@@ -208,31 +230,21 @@ with tab1:
         fig_status.update_xaxes(tickangle=45)
         st.plotly_chart(fig_status, use_container_width=True)
 
+    
     # -----------------------------
-    # 4. Hourly Rate by Age Range (VIOLIN) - RESET
+    # 4. Age Range Distribution (BAR) — count ascending order
     # -----------------------------
     with col4:
-        fig_violin = px.violin(
+        fig_age = px.histogram(
             df_tab1,
             x="Age Range",
-            y="Avg. Hourly Rate of Pay",
-            color="Age Range",
             category_orders={"Age Range": age_order},
-            title="Hourly Rate by Age Range",
-            points=False           # no dots
+            title="Headcount by Age Range"
         )
 
-        fig_violin.update_traces(
-            scalemode="width",     # ✅ Seaborn-like width
-            width=0.8,              # ✅ fuller violins
-            meanline_visible=True,
-            meanline_color="black",
-            meanline_width=1
+        fig_age.update_layout(showlegend=False)
+        st.plotly_chart(fig_age, use_container_width=True)
 
-        )
-
-        fig_violin.update_layout(showlegend=False)
-        st.plotly_chart(fig_violin, use_container_width=True)
 
 
     # -----------------------------
@@ -336,6 +348,7 @@ with tab2:
         y="Count",
         color="Level",
         color_discrete_map=color_map,
+        category_orders={"Level": ["No Irish", "Level 3+", "Some Irish"]},
         title="",
         text="Count"
     )
@@ -594,7 +607,7 @@ with tab5:
     with filter_container:
         if "Directorate (Person)" in df.columns:
             dirs = ["All"] + sorted(df["Directorate (Person)"].dropna().unique().tolist())
-            selected_dir = st.selectbox("", dirs, index=0)
+            selected_dir = st.selectbox("Directorate", dirs, index=0, label_visibility="collapsed")
         else:
             selected_dir = "All"
 
