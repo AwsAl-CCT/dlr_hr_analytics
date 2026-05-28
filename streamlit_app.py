@@ -10,7 +10,7 @@ import seaborn as sns
 from matplotlib.gridspec import GridSpec
 
 
-@st.cache_data
+@st.cache_data(ttl=300)
 def load_data():
     url = 'https://raw.githubusercontent.com/AwsAl-CCT/dlr_hr_analytics/refs/heads/main/QVal.csv'
     response = requests.get(url)
